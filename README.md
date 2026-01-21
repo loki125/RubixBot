@@ -14,7 +14,9 @@
 * 20 x Small 2mm Wood screws or Metric M2x8 Bolts: http://amzn.to/2x8Qwb1  
 
 ## Plan
-Client(User device) connects via http to raspberry server via fastAPI
+Client(User device) connects via http to a server via fastAPI.
+
+The server is on a computer that has a way to interact with the esp32 in charge of the device via bluetooth.
 
 FastAPI lets clients call functions on servers easily so client just needs to do call(function_name, *args, **kwags) basically.
 
@@ -25,3 +27,14 @@ Server has following functions:
 * Scramble() -> List[Moves]: Randomly scrambles the cube
 * Perform(List[Moves]): Rotates the cube by the given move set.
 * Get_rotated() -> List[Moves]: Returns a list of all the moves done since last solved.
+
+## Workloads:
+# Sisyphus:
+- Make the code to handle the servos with the esp.
+- Make the bluetooth connection on the server and client.
+- Handle 3printer to print files.
+
+# Itay:
+- Program the FastAPI code on both ends.
+- Make logic for the rublik's cube.
+- In charge of parts list getting model files to print.
