@@ -1,3 +1,4 @@
+#include "BLECharacteristic.h"
 /*
     Based on Neil Kolban example for IDF: https://github.com/nkolban/esp32-snippets/blob/master/cpp_utils/tests/BLE%20Tests/SampleServer.cpp
 */
@@ -16,6 +17,10 @@
 // See the following for generating UUIDs:
 // https://www.uuidgenerator.net/
 
+// private functions:
+void rgb_read(BLECharacteristic *pCharacteristic);
+
+
 int connectedClients = 0;
 
 class MyServerCallbacks : public BLEServerCallbacks {
@@ -33,6 +38,18 @@ class MyServerCallbacks : public BLEServerCallbacks {
     BLEDevice::startAdvertising();
     set_rgb(1, 0, 0);
     delay(500);
+  }
+};
+
+class CharacteristicsCallbacks : public BLECharacteristicCallbacks {
+  void onWrite(BLECharacteristic *pCharacteristic){ // data was written by different client.
+    String Characteristic_UUID = pCharacteristic->getUUID().toString();
+    if (Characteristic_UUID == RGB_CHARACTERISTIC_UUID){
+      rgb_read(pCharacteristic);
+    }
+    else {
+        Serial.println("Huh? I don't think this characteristic is right...");
+    }
   }
 };
 
@@ -55,37 +72,42 @@ void ble_setup() {
     RGB_CHARACTERISTIC_UUID,
     BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY | BLECharacteristic::PROPERTY_WRITE | BLECharacteristic::PROPERTY_INDICATE
   );
-  // pCharacteristic[x]->setValue("Hello World says Sisyphus");
-  // pCharacteristic[x]->getValue();
+  pCharacteristics[RGB_CHARACTERISTIC]->setCallbacks(new CharacteristicsCallbacks());
   
   pService->start();
   
   BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
   pAdvertising->addServiceUUID(SERVICE_UUID);
   pAdvertising->setScanResponse(true);
-  pAdvertising->setMinPreferred(0x06);  // functions that help with iPhone connections issue
+  pAdvertising->setMinPreferred(0x06);  // "functions that help with iPhone connections issue", not sure if needed but was in the example
   pAdvertising->setMaxPreferred(0x12);
   BLEDevice::startAdvertising();
 
   Serial.println("Advertising...");
 }
 
-// TODO: Check how to implement non string data
+struct RGB_data{
+  float red;
+  float green;
+  float blue;
+};
 
 /*
 data sent as string of 3 chars 0-9 as brightess level.
 */
-void check_rgb()
+void rgb_read(BLECharacteristic *pCharacteristic)
 {
-  String data = pCharacteristics[RGB_CHARACTERISTIC]->getValue();
-  float red = float((char)data[0] - 48) / 10.0;
-  float green = float((char)data[1] - 48) / 10.0;
-  float blue = float((char)data[2] - 48) / 10.0;
-  set_rgb(red, green, blue);
+  size_t data_length = pCharacteristic->getLength();
+  if (data_length != sizeof(struct RGB_data)){
+    Serial.println("Invalid data size for RGB Characteristic.");
+    return;
+  }
+  struct RGB_data* data = (RGB_data*)pCharacteristic->getData();
+  // struct RGB_data data = pCharacteristics[RGB_CHARACTERISTIC]->getValue();
+  set_rgb(data->red, data->green, data->blue);
 }
 
 void ble_loop() {
-  check_rgb();
   // put your main code here, to run repeatedly:
   delay(100);
 }
