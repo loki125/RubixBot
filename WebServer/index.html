@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, <initial-scale=1.0">
+    <title>Redirect Page</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-image: url('/images/background.png');
+            background-size: cover;
+            background-attachment: fixed;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            flex-direction: column;
+        }
+
+        .redirect-button {
+            padding: 15px 30px;
+            font-size: 18px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            text-decoration: none;
+        }
+
+        .redirect-button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <button id="Root_button" class="redirect-button">Root the cube</button>
+</body>
+<script>
+    async function Root(){
+        console.log("Rooting cube")
+        let a = await fetch('/Root', {method: 'Post'})
+        let data = await a.json()
+        if (data == true){
+            window.open("/cube/control.html")
+        }
+        console.log(data)
+    }
+
+    document.getElementById("Root_button").addEventListener("click", Root);
+</script>
+</html>

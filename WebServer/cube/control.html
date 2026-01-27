@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cube controller</title>
+<!-- TODO: add style -->
+</head>
+<body>
+    <div class="container">
+        <!-- Header with navigation -->
+        <header>
+            <div class="logo">
+                <div class="logo-icon">🧩</div>
+                <h1>Cube builder</h1>
+            </div>
+            <nav>
+                <ul>
+                    <li><a href="#" class="active">Home</a></li>
+                    <li><a href="/cube/view">View</a></li> <!-- if we get a camera working-->
+                    <li><a href="/cube/visualize">Visualize</a></li>
+                </ul>
+            </nav>
+        </header>
+
+        <!-- Main content -->
+        <main>
+            <div id=ControlArea>
+                <div id="ButtonsGroup">
+                    <button id="">Egg</button>
+                    <button id="">Egg</button>
+                    <button id="">Egg</button>
+                </div>
+                <div id="MoveList">
+                    <div id="Addition tool">
+                        <input type="text" id="MoveTextBox" placeholder="Write the move">
+                        <button onClick="AddMove()">Add</button>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+    <script>
+        function AddMove() {
+            let textbox = document.getElementById('MoveTextBox');
+            console.log("called");
+            const inputValue = textbox.value.trim();
+            if (inputValue === '') return;
+
+            // Create container div
+            containerDiv = document.createElement('div');
+            containerDiv.className = 'container';
+
+            // Create text element
+            textElement = document.createElement('span');
+            textElement.textContent = inputValue;
+
+            // Create remove button
+            const removeButton = document.createElement('button');
+            removeButton.textContent = 'Remove';
+            removeButton.onclick = function() {
+                containerDiv.remove();
+            };
+
+            // Add elements to container
+            containerDiv.appendChild(textElement);
+            containerDiv.appendChild(removeButton);
+
+            // Add container to display area
+            document.getElementById('MoveList').appendChild(containerDiv);
+
+            // Clear input
+            textbox.value = '';
+        }
+    </script>
+</body>
+</html>
