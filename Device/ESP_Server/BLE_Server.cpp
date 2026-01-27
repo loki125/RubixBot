@@ -23,6 +23,9 @@ void rgb_read(BLECharacteristic *pCharacteristic);
 
 int connectedClients = 0;
 
+/*
+Profile level callbacks, for general connections like users connecting and disconnecting.
+*/
 class MyServerCallbacks : public BLEServerCallbacks {
   void onConnect(BLEServer *pServer) {
     Serial.print("Client connected. Total clients: ");
@@ -41,6 +44,15 @@ class MyServerCallbacks : public BLEServerCallbacks {
   }
 };
 
+/*
+Characteristics level callbacks, for "events" specifically for Characteristics.
+The parameter BLECharacteristic* is a pointer to a the logical characteristic, You can(preferably) use this one instead of the array of the pcharacteristics array.
+onWrite(BLECharacteristic*) Gets called when a user writes data into a characteristic.
+Not sure for their usages but there's also these possible callbacks:
+OnRead(BLECharacteristic*);
+OnNotify(BLECharacteristic*);
+OnStatus(BLECharacteristic*, Status s, uint32_t code);
+*/
 class CharacteristicsCallbacks : public BLECharacteristicCallbacks {
   void onWrite(BLECharacteristic *pCharacteristic){ // data was written by different client.
     String Characteristic_UUID = pCharacteristic->getUUID().toString();
@@ -93,7 +105,7 @@ struct RGB_data{
 };
 
 /*
-data sent as string of 3 chars 0-9 as brightess level.
+Data is sent as 3 floats repressenting the brightness of each color red, gree, and blue in that order.
 */
 void rgb_read(BLECharacteristic *pCharacteristic)
 {

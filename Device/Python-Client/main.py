@@ -11,7 +11,11 @@ CHARACTERISTICS = \
 }
 
 class BLE_Connection:
+    """
+    Wrapper for the bleak client, should make it easy to handle the server connection like this without really going into the bleak docs.
+    """
     def __init__(self, device_address, debug=False):
+        # TODO: scan devices to find our device instead of using a hardcoded address.
         self._connection = bleak.BleakClient(device_address)
         self._debug = debug
 
@@ -47,7 +51,8 @@ class BLE_Connection:
         return a
 
 
-
+# we can get also data: got = await _connection.read_gatt_char(CHARACTERISTICS["Identifier"]), Though it is highly preferrable to use the callback function.
+# Also note that we didn't connect the callback to the bluetooth connection as I don't have exactly a reason to use it for now I left it unimplemented.
 def callback(sender: bleak.BleakGATTCharacteristic, data: bytearray):
     """
     Gets called when the server calls notify, data may change but this will only get called when server calls notify().
@@ -60,14 +65,10 @@ def callback(sender: bleak.BleakGATTCharacteristic, data: bytearray):
     print(f"Data recieved from {sender}: {data}")
 
 
-# to get data: got = await client_socket.read_gatt_char(CHARACTERISTICS["My Identifier"])    
-# to send data: await client_socket.write_gatt_char(CHARACTERISTICS["My Identifier"], data)
-# TODO: Check how to implement non bstring data
-
 async def set_rgb(connection: BLE_Connection, red, green, blue):
     """
     Sets the built in RGB to the given colors.
-    data sent as string of 3 chars 0-9 as brightess level.
+    data sent as 3 floats repressenting red, green and blue values in that order.
     """
     await connection.set_characteristic_value("Light", "<3f", red, green, blue, print_data=True)
 
@@ -75,10 +76,13 @@ async def main():
     print("Connecting...")
     async with BLE_Connection(DEVICE, debug=True) as client:
 
-        for i in list(range(16)) + [0]: # for from 1-9 then 0.
+        for i in list(range(16)) + [0]:
             await set_rgb(client, i / 16, i / 32, i / 64)
             await asyncio.sleep(0.25) # wait before sending next one.
 
 
 if __name__ == '__main__':
+    # Async functions let us control code flow in a unique way so that if we need to wait for something the program can do other things at the same time.
+    # Kind of like threads doing multiple things in multiple spots of code, but in one thread, can indeed have issues but can be highly usefull.
+    # For example getting many images at once, if we need to download many images then we ask for many and if one's still loading then we go for a different one. 
     asyncio.run(main())
