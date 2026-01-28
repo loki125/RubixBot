@@ -20,7 +20,7 @@ The server is on a computer that has a way to interact with the esp32 in charge 
 
 FastAPI lets clients call functions on servers easily so client just needs to do call(function_name, *args, **kwags) basically.
 
-Server has following functions:
+Server has the following functions:
 * Root() -> bool: Sets up cube in place of the device.
 * View() -> CubeData: Gets the camera data and returns the state of the cube.
 * Solve() -> List[Moves]: Solves the cube until it fits on all sides.
