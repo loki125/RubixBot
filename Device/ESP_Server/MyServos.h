@@ -3,10 +3,10 @@
 */
 
 enum RUBIK_SERVO{
-  Left = 0,
-  Right,
-  Up,
-  down
+  SERVO_LEFT = 0,
+  SERVO_RIGHT,
+  SERVO_UP,
+  SERVO_DOWN
 };
 
 void servos_setup();
