@@ -8,6 +8,10 @@ DEVICE = "40:4C:CA:43:0A:EE"
 CHARACTERISTICS = \
 {
     "Light": "beb5483e-36e1-4688-b7f5-ea07361b26a8",
+    "ServoLeft": "5a41dac7-2769-4b4f-96e1-26c49c7b50d4",
+    "ServoRight": "7ddf96a9-6145-4e9e-bee8-85a4257347b3",
+    "ServoUp": "3599075c-c02b-4318-900f-33d24a525e3d",
+    "ServoDown": "83400224-6ec6-4151-8228-d8ae396ded4b"
 }
 
 class BLE_Connection:
@@ -34,9 +38,7 @@ class BLE_Connection:
     ### Enter and exit methods are for "with ble_connection", to make sure the socket closes correctly.
     # since our connection implemented them we can send the data to the connection under us, 
     async def __aenter__(self, *args, **kwargs):
-        print("Enter")
         a = await self._connection.__aenter__(*args, **kwargs) # can also do connection.connect which is what's in the aenter but yes :D
-        print(a)
         # for characteristic in CHARACTERISTICS.values():
             # await client.start_notify(characteristic, callback) # on change do callback.
         if self._debug: 
@@ -76,8 +78,9 @@ async def main():
     print("Connecting...")
     async with BLE_Connection(DEVICE, debug=True) as client:
 
-        for i in list(range(16)) + [0]:
-            await set_rgb(client, i / 16, i / 32, i / 64)
+        for i in list(range(18)) + [0]:
+            # await set_rgb(client, i / 16, i / 32, i / 64)
+            await client.set_characteristic_value("ServoRight", "I", i * 10)
             await asyncio.sleep(0.25) # wait before sending next one.
 
 

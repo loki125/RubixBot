@@ -5,9 +5,9 @@
 #ifndef Utils_h
 #define Utils_h
 
-#include "Arduino.h"
-
 #include "BLE_Server.h"
+#include "Arduino.h"
+#include "MyServos.h"
 
 #include <BLEDevice.h>
 #include <BLEUtils.h>
@@ -19,6 +19,7 @@
 
 // private functions:
 void rgb_read(BLECharacteristic *pCharacteristic);
+void servo_read(BLECharacteristic *pCharacteristic);
 
 
 int connectedClients = 0;
@@ -28,6 +29,7 @@ Profile level callbacks, for general connections like users connecting and disco
 */
 class MyServerCallbacks : public BLEServerCallbacks {
   void onConnect(BLEServer *pServer) {
+    connectedClients++;
     Serial.print("Client connected. Total clients: ");
     Serial.println(connectedClients);
     set_rgb(0, 1, 0);
@@ -56,6 +58,14 @@ OnStatus(BLECharacteristic*, Status s, uint32_t code);
 class CharacteristicsCallbacks : public BLECharacteristicCallbacks {
   void onWrite(BLECharacteristic *pCharacteristic){ // data was written by different client.
     String Characteristic_UUID = pCharacteristic->getUUID().toString();
+    Serial.printf("Characteristic %s Has been modified\n", Characteristic_UUID.c_str());
+    
+    for (int i = 0; i < SERVO_COUNT; i++){
+      if (Characteristic_UUID == SERVO_CHARACTERISTICS_UUIDS[i]){
+        servo_read(pCharacteristic);
+        return;
+      }
+    }
     if (Characteristic_UUID == RGB_CHARACTERISTIC_UUID){
       rgb_read(pCharacteristic);
     }
@@ -65,13 +75,11 @@ class CharacteristicsCallbacks : public BLECharacteristicCallbacks {
   }
 };
 
-enum CHARACTERISTICS {
-  RGB_CHARACTERISTIC = 0,
-};
-
-BLECharacteristic * pCharacteristics[] = { nullptr, };
+// CharacteristicsCallbacks callback = new CharacteristicsCallbacks();
+BLECharacteristic * pCharacteristics[5] = { nullptr };
 
 void ble_setup() {
+  servos_setup();
   Serial.println("Starting BLE work!");
 
   // String is the name that shows up on adverisement.
@@ -79,19 +87,31 @@ void ble_setup() {
   BLEServer *pServer = BLEDevice::createServer();
   pServer->setCallbacks(new MyServerCallbacks());
 
-  BLEService *pService = pServer->createService(SERVICE_UUID);
-  pCharacteristics[RGB_CHARACTERISTIC] = pService->createCharacteristic(
+  BLEService *pDebugService = pServer->createService(DEBUG_SERVICE_UUID);
+  pCharacteristics[RGB_CHARACTERISTIC] = pDebugService->createCharacteristic(
     RGB_CHARACTERISTIC_UUID,
     BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY | BLECharacteristic::PROPERTY_WRITE | BLECharacteristic::PROPERTY_INDICATE
   );
+  pDebugService->start();
   pCharacteristics[RGB_CHARACTERISTIC]->setCallbacks(new CharacteristicsCallbacks());
+
+  BLEService *pServoService = pServer->createService(SERVO_SERVICE_UUID);
+  for (int i = 0; i < SERVO_COUNT; i++){
+    pCharacteristics[i + 1] = pServoService->createCharacteristic(
+      SERVO_CHARACTERISTICS_UUIDS[i],
+      BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY | BLECharacteristic::PROPERTY_WRITE | BLECharacteristic::PROPERTY_INDICATE
+    );
+    pCharacteristics[i + 1]->setCallbacks(new CharacteristicsCallbacks());  
+  }
+  pServoService->start();
+  Serial.println("OOE!");
   
-  pService->start();
   
   BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
-  pAdvertising->addServiceUUID(SERVICE_UUID);
+  pAdvertising->addServiceUUID(DEBUG_SERVICE_UUID);
+  pAdvertising->addServiceUUID(RGB_CHARACTERISTIC_UUID);
   pAdvertising->setScanResponse(true);
-  pAdvertising->setMinPreferred(0x06);  // "functions that help with iPhone connections issue", not sure if needed but was in the example
+  pAdvertising->setMinPreferred(0x06);  // "functions that help with iPhone connections issue", not sure if needed but was in the example and I don't see a harm in it. 
   pAdvertising->setMaxPreferred(0x12);
   BLEDevice::startAdvertising();
 
@@ -119,9 +139,34 @@ void rgb_read(BLECharacteristic *pCharacteristic)
   set_rgb(data->red, data->green, data->blue);
 }
 
+struct Servo_Data{
+  unsigned int angle; // angle to set the servo to, 0-180
+};
+
+void servo_read(BLECharacteristic *pCharacteristic)
+{
+  size_t data_length = pCharacteristic->getLength();
+  if (data_length != sizeof(struct Servo_Data)){
+    Serial.println("Invalid data size for Servo Characteristic.");
+    return;
+  }
+  struct Servo_Data* data = (Servo_Data*)pCharacteristic->getData();
+  unsigned int angle = data->angle;
+  
+  String Characteristic_UUID = pCharacteristic->getUUID().toString();
+  if (Characteristic_UUID == SERVO_LEFT_CHARACTERISTIC_UUID)
+      set_servo_pos(SERVO_LEFT, angle);
+  else if (Characteristic_UUID == SERVO_RIGHT_CHARACTERISTIC_UUID)
+      set_servo_pos(SERVO_RIGHT, angle);
+  else if (Characteristic_UUID == SERVO_UP_CHARACTERISTIC_UUID)
+      set_servo_pos(SERVO_UP, angle);
+  else if (Characteristic_UUID == SERVO_DOWN_CHARACTERISTIC_UUID) // last check isn't needed but feels more "correct"
+      set_servo_pos(SERVO_DOWN, angle);
+  // assuming the check was done before we needn't check invalid input.
+}
+
 void ble_loop() {
   // put your main code here, to run repeatedly:
-  delay(100);
 }
 
 #endif
