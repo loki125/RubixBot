@@ -35,8 +35,7 @@ class Move(Enum):
 
 class DeviceInterface:
     """
-    Costume external class provided by you. 
-    (This is a mockup to allow the code to run and demonstrate architecture).
+    Costume external class for interacting with the physical device.
     """
     def __init__(self, image_path: str):
         self.image_path = image_path
