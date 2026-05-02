@@ -4,215 +4,177 @@ import kociemba
 from enum import Enum
 import time
 
-class Face(Enum):
-    U = 'U' # Up
-    D = 'D' # Down
-    R = 'R' # Right
-    L = 'L' # Left
-    B = 'B' # Back
-    F = 'F' # Front
-
-class Move(Enum):
-    U = "U"
-    U_PRIME = "U'"
-    U2 = "U2"
-    D = "D"
-    D_PRIME = "D'"
-    D2 = "D2"
-    R = "R"
-    R_PRIME = "R'"
-    R2 = "R2"
-    L = "L"
-    L_PRIME = "L'"
-    L2 = "L2"
-    F = "F"
-    F_PRIME = "F'"
-    F2 = "F2"
-    B = "B"
-    B_PRIME = "B'"
-    B2 = "B2"
-
-
-class DeviceInterface:
-    """
-    Costume external class for interacting with the physical device.
-    """
-    def __init__(self, image_path: str):
-        self.image_path = image_path
-
-    def get_face_image(self, face: Face) -> bool:
-        print(f"[Device] Moving camera/cube to capture face {face.name}...")
-        # Simulates capturing an image and saving it to the shared image_path
-        time.sleep(0.5) 
-        return True
-
-    def run_operation(self, op: Move) -> bool:
-        print(f"[Device] Executing move: {op.value}")
-        time.sleep(0.5)
-        return True
+from Instructions import * # Make sure your Enums from the previous file are imported
 
 class ImageProc:
-    def __init__(self, image_path: str):
-        # The path where the image is always saved and processed from
-        self.image_path = image_path
+    def __init__(self, image_path_fb: str, image_path_lr: str):
+        # We now require BOTH images to fuse them together
+        self.image_path_fb = image_path_fb
+        self.image_path_lr = image_path_lr
 
     def map_colors(self) -> list:
         """
-        Reads the image, finds the Rubik's cube face, and extracts the 9 colors.
-        Returns a list of 9 characters representing colors (e.g.,['R', 'W', 'B', ...])
-        reading from top-left to bottom-right.
+        Reads both images, extracts the 9 colors from each, and fuses them 
+        to bypass the physical blindspots caused by the claws.
         """
-        img = cv2.imread(self.image_path)
-        if img is None:
-            print("[ImageProc] Could not read image, returning mock colors.")
-            # Fallback to mock data if no real image exists at the path
-            return['U']*9 
+        img_fb = cv2.imread(self.image_path_fb)
+        img_lr = cv2.imread(self.image_path_lr)
 
-        # 1. Convert to grayscale and find edges
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-        canny = cv2.Canny(blurred, 30, 60)
+        if img_fb is None or img_lr is None:
+            print("[ImageProc] Could not read one or both images. Returning mock colors.")
+            return ['U'] * 9 
 
-        # 2. Find contours
-        contours, _ = cv2.findContours(canny, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        # Extract 9 colors from both images using a fixed-grid approach
+        colors_fb = self._extract_grid_colors(img_fb)
+        colors_lr = self._extract_grid_colors(img_lr)
+
+        # FUSE THE IMAGES:
+        # img_lr: Left/Right claws are blocking the sides, but Top & Bottom are clear.
+        # img_fb: Front/Back claws are blocking top/bottom, but Middle is clear.
+        final_colors = [
+            colors_lr[0], colors_lr[1], colors_lr[2], # Top Row (From LR image)
+            colors_fb[3], colors_fb[4], colors_fb[5], # Middle Row (From FB image)
+            colors_lr[6], colors_lr[7], colors_lr[8]  # Bottom Row (From LR image)
+        ]
         
-        squares =[]
-        for cnt in contours:
-            perimeter = cv2.arcLength(cnt, True)
-            approx = cv2.approxPolyDP(cnt, 0.05 * perimeter, True)
-            
-            # If the contour has 4 vertices, it's a square/rectangle (a cube sticker)
-            if len(approx) == 4:
-                area = cv2.contourArea(cnt)
-                # Filter by area to avoid noise (these thresholds need tuning based on your camera setup)
-                if 1000 < area < 10000:
-                    x, y, w, h = cv2.boundingRect(approx)
-                    squares.append((x, y, w, h))
+        return final_colors
 
-        # 3. Sort squares to read from top-left to bottom-right (3x3 grid)
-        # Note: A robust implementation would ensure exactly 9 squares are found.
-        squares = sorted(squares, key=lambda s: (s[1] // 50, s[0])) # Rough spatial sorting
+    def _extract_grid_colors(self, img) -> list:
+        """
+        Instead of contours (which fail if claws block the square shape), 
+        we sample the center pixel of a 3x3 grid over the cube area.
+        """
+        # NOTE: You will need to tune these margins based on how much of the camera 
+        # frame the cube actually takes up! Assuming cube is centered.
+        height, width = img.shape[:2]
+        
+        # Define the bounding box of the cube in the image (e.g., 20% margin)
+        margin_x = int(width * 0.2)
+        margin_y = int(height * 0.2)
+        
+        cube_w = width - (2 * margin_x)
+        cube_h = height - (2 * margin_y)
+        
+        cell_w = cube_w // 3
+        cell_h = cube_h // 3
 
-        detected_colors =[]
         hsv_img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+        detected_colors =[]
 
-        for (x, y, w, h) in squares[:9]:
-            # Extract the center pixel of each square to get the color
-            cx, cy = x + w // 2, y + h // 2
-            pixel_hsv = hsv_img[cy, cx]
-            color_char = self._hsv_to_color(pixel_hsv)
-            detected_colors.append(color_char)
+        for row in range(3):
+            for col in range(3):
+                # Calculate the exact center pixel of each of the 9 stickers
+                cx = margin_x + (col * cell_w) + (cell_w // 2)
+                cy = margin_y + (row * cell_h) + (cell_h // 2)
+                
+                pixel_hsv = hsv_img[cy, cx]
+                color_char = self._hsv_to_color(pixel_hsv)
+                detected_colors.append(color_char)
 
         return detected_colors
 
     def _hsv_to_color(self, hsv_pixel) -> str:
         """
         Maps an HSV pixel to a standard Rubik's Cube color.
-        NOTE: These HSV ranges will need tuning based on your specific lighting!
-        Returns: 'W' (White), 'Y' (Yellow), 'R' (Red), 'O' (Orange), 'G' (Green), 'B' (Blue)
+        NOTE: Tune these ranges based on your camera hardware and lighting!
         """
         h, s, v = hsv_pixel
-        if s < 50 and v > 150:
-            return 'W' # White
-        elif s < 50 and v < 100:
-            return 'W' # Assuming no black on cube, fallback
+        if s < 50 and v > 150: return 'W' # White
+        if s < 50 and v < 100: return 'W' # Fallback
         
-        if h < 10 or h > 165:
-            return 'R' # Red
-        elif 10 <= h < 25:
-            return 'O' # Orange
-        elif 25 <= h < 35:
-            return 'Y' # Yellow
-        elif 35 <= h < 85:
-            return 'G' # Green
-        elif 85 <= h < 140:
-            return 'B' # Blue
+        if h < 10 or h > 165: return 'R'  # Red
+        elif 10 <= h < 25:    return 'O'  # Orange
+        elif 25 <= h < 35:    return 'Y'  # Yellow
+        elif 35 <= h < 85:    return 'G'  # Green
+        elif 85 <= h < 140:   return 'B'  # Blue
         
         return 'W' # Default fallback
 
+
 class CubeLogic:
-    def __init__(self, device: DeviceInterface, image_proc: ImageProc):
-        self.device = device
-        self.image_proc = image_proc
+    def __init__(self, image_path_fb: str, image_path_lr: str):
+        self.device = DeviceInterface(
+            image_path_fb=image_path_fb, 
+            image_path_lr=image_path_lr
+        )
+
+        self.image_proc = ImageProc(
+            image_path_fb=image_path_fb, 
+            image_path_lr=image_path_lr
+        )
         self.cube_state = {}
 
     def scan_cube(self) -> bool:
         """
-        Uses the DeviceInterface to look at all 6 faces,
-        then uses ImageProc to map the colors.
+        Uses the DeviceInterface to orient the cube, takes dual pictures for all 6 faces,
+        and fuses them via ImageProc.
         """
-        print("\n--- Scanning Cube ---")
+        print("\n==============================")
+        print("--- Initiating Cube Scan ---")
+        print("==============================")
+        
         # Kociemba requires the faces in a specific order: U, R, F, D, L, B
         scan_order =[Face.U, Face.R, Face.F, Face.D, Face.L, Face.B]
 
         for face in scan_order:
+            # 1. Device handles the physical movement, rolling, and takes both pictures!
             success = self.device.get_face_image(face)
             if not success:
                 print(f"[CubeLogic] Error: Failed to capture face {face.name}")
                 return False
             
-            # Map colors from the newly saved image
+            # 2. ImageProc reads the newly saved images, fuses them, and extracts 9 colors
             colors = self.image_proc.map_colors()
             
-            # Store colors mapped to the face
+            # 3. Store the result
             self.cube_state[face] = colors
-            print(f"Scanned {face.name}: {colors}")
+            print(f"--> {face.name} Face Colors Detected: {colors}")
 
         return True
 
     def solve(self):
         """
-        Main solving function. Scans the cube, generates the algorithm, 
-        and sends operations to the device.
+        Main solving function. Scans, translates colors to Kociemba notation, 
+        generates the algorithm, and sends it to the hardware.
         """
         if not self.scan_cube():
-            print("[CubeLogic] Aborting solve due to scanning failure.")
+            print("\n[CubeLogic] Aborting solve due to scanning failure.")
             return
 
         print("\n--- Calculating Solution ---")
-        # To solve using Kociemba, we must replace colors (W, Y, R, etc) 
-        # with the relative face names (U, D, R, L, F, B).
-        # We determine which color belongs to which face by looking at the center tiles.
+        
+        # Map center colors to their Face (e.g., Yellow -> U)
         color_to_face = {}
         for face, colors in self.cube_state.items():
-            # The 5th element (index 4) is the center tile of a 3x3 face
-            center_color = colors[4] 
+            center_color = colors[4] # Index 4 is the center of the 3x3 array
             color_to_face[center_color] = face.value
 
-        # Build the 54-character string expected by Kociemba: U1-U9, R1-R9, F1-F9, D1-D9, L1-L9, B1-B9
+        # Build the 54-character Kociemba string
         kociemba_order =[Face.U, Face.R, Face.F, Face.D, Face.L, Face.B]
         cube_string = ""
         
         try:
             for face in kociemba_order:
                 for color in self.cube_state[face]:
-                    # Map the detected color to its structural face letter
+                    # Map 'W', 'Y', etc. to 'U', 'R', 'F', etc.
                     cube_string += color_to_face[color]
-        except KeyError:
-            print("[CubeLogic] Error: Detected colors do not form a valid Rubik's cube state. Check camera/lighting.")
-            # For demonstration, we will use a known solved state if the camera mapping fails
-            cube_string = "UUUUUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB"
+        except KeyError as e:
+            print(f"[CubeLogic] Color mapping failed! Found unknown center color: {e}")
+            print("Ensure lighting is consistent and center tiles are correctly read.")
+            return
 
         print(f"Computed Cube String: {cube_string}")
 
-        # Solve using the library
+        # Solve via Kociemba
         try:
-            # Returns a string like: "D2 R' D' F2 C B'..."
             solution_string = kociemba.solve(cube_string)
             print(f"Solution Algorithm: {solution_string}")
         except Exception as e:
-            print(f"[CubeLogic] Kociemba solve error (Cube might be unsolvable/read incorrectly): {e}")
+            print(f"\n[CubeLogic] Kociemba solve error: {e}")
+            print("This usually means the camera misread a color. Check the CV mapping!")
             return
 
-        # Execute operations on the device
-        print("\n--- Executing Moves ---")
-        moves = solution_string.split()
-        for move_str in moves:
-            # Parse the string into our Move Enum
-            op = Move(move_str)
-            success = self.device.run_operation(op)
-            if not success:
-                print(f"[CubeLogic] Device failed to execute move {op.name}. Aborting.")
-                return
-        
-        print("[CubeLogic] Cube successfully solved!")
+        # Send the solution string back to the robot execution pipeline!
+        print("\n--- Executing Hardware Solution ---")
+        self.device.solve_from_kociemba(solution_string)
+        print("\n[CubeLogic] Cube successfully solved!")
