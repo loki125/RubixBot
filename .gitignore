@@ -1,3 +1,4 @@
 .venv/ 
 venv/
 .idea/
+/Device/Camera/CameraWebServer/wifi_credentials.h
