@@ -14,19 +14,17 @@
 
 WebServer server(80);
 
-// Site/api/servo{P/S}{1-4}/{0-180}
+// Site/api/servo{1/2}/{0-180}
 void processServoRequest(){
   Serial.println(F("Starting_check"));
-  bool is_push = server.pathArg(0)[0] == 'P'; // no need to check for S cause regex does it for us.
-  Serial.println(F("Pushed"));
-  int servo_number = server.pathArg(1).toInt() - 1; // no need to check for valid number cause regex did as well.
+  int servo_number = server.pathArg(0).toInt() - 1; // no need to check for valid number cause regex did as well.
   Serial.println("servo numbered.");
-  int angle_number = server.pathArg(2).toInt(); // same thing just need to make sure it's within 180 degrees.
+  int angle_number = server.pathArg(1).toInt(); // same thing just need to make sure it's within 180 degrees.
   Serial.println("Hello there.");
   if (angle_number > 180) {
     server.send(400, "text/plain", "Invalid angle");
     return;
-  }
+  } // we don't check '-' sign so only positives
   // servo logic goes here.
   set_servo_pos(
     (RUBIK_SERVO)servo_number,
@@ -35,7 +33,7 @@ void processServoRequest(){
 
   char state[100] = { 0 };
 
-  sprintf(state, "Servo({%s}{%d}) set to angle({%d})", is_push? "Push": "Spin", servo_number, angle_number);
+  sprintf(state, "Servo<{%d}> set to angle({%d})", servo_number, angle_number);
 
   Serial.println(state);
   server.send(200, "text/plain", state);
@@ -96,10 +94,10 @@ void webserver_setup(){
     server.send(200, "text/html", FPSTR(mainPage));
   });
 
-  // Regex checks: /api/servo/{P/S}{1-4}/{0-infinity}, Eg: /api/servo/P3/180
-  // P is for push, S is for spin, 1-4 is for which servo pair we should activate, last number is the angle, makes it easier to check the angle with code since the servo sets might have different angles and checking for 180 with regex is quite the connundrum anyway.
-  // also, the ^ is for start of the string, and $ is for the end, so we don't have like foo/api/servo...180/bar or anything. Makes it very strict
-  server.on(UriRegex("^\\/api\\/servo\\/([PS])([1-4])\\/([0-9]+)$"), processServoRequest);
+  // Regex checks: /api/servo/{1-2}/{0-infinity}, Eg: /api/servo/1/180
+  // 1-2 is for which servo we should activate, last number is the angle, makes it easier to check the angle with code since the servo sets might have different angles and checking for 180 with regex is quite the connundrum anyway.
+  // also, the ^ is for start of the string, and $ is for the end, so we don't have like foo/api/servo1/180/bar or anything. Makes it very strict
+  server.on(UriRegex("^\\/api\\/servo\\/([1-2])\\/([0-9]+)$"), processServoRequest);
   
   // Checks for RGB in hex values. Eg: /api/color/#FF0000
   server.on(UriRegex("^\\/api\\/color\\/#?([A-Fa-f0-9]{6})$"), processColorRequest);

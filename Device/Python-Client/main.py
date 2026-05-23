@@ -1,103 +1,70 @@
-import bleak
 import asyncio
-import struct
+from enum import Enum
+import socket
 
-# DEVICE = "40:4C:CA:41:CD:D6"
-DEVICE = "40:4C:CA:43:0A:EE"
-CHARACTERISTICS = \
-    {
-        "Light": "beb5483e-36e1-4688-b7f5-ea07361b26a8",
-        "ServoLeft": "5a41dac7-2769-4b4f-96e1-26c49c7b50d4",
-        "ServoRight": "7ddf96a9-6145-4e9e-bee8-85a4257347b3",
-        "ServoUp": "3599075c-c02b-4318-900f-33d24a525e3d",
-        "ServoDown": "83400224-6ec6-4151-8228-d8ae396ded4b"
-    }
+import cv2
+import numpy as np
+import requests
 
 
-class BLEConnection:
-    """
-    Wrapper for the bleak client.
-    Should make it easy to handle the server connection like this without really going into the bleak docs.
-    """
+class CameraClient:
+    def __init__(self):
+        ip_address = socket.gethostbyname("RubikCamera")
+        self.camera_url = f"http://{ip_address}/capture"
 
-    def __init__(self, device_address, debug=False):
-        # TODO: scan devices to find our device instead of using a hardcoded address.
-        self._connection = bleak.BleakClient(device_address)
-        self._debug = debug
+    def get_image(self):
+        answer = requests.get(self.camera_url)
+        if answer.status_code != 200:
+            return None
+        img_np = np.asarray(bytearray(answer.content), dtype=np.uint8)
+        img = cv2.imdecode(img_np, -1)
+        return img
 
-    async def set_characteristic_value(self, identifier: str, struct_format, *data, print_data=False):
+class ServoType(Enum):
+    SPIN = 0
+    TOP = 1
+
+class ServoClient:
+    # Site/api/servo{1/2}/{0-180}
+    def __init__(self):
+        ip_address = socket.gethostbyname("EspServoController")
+        print(f"ip_address: {ip_address}")
+        self.color_format = "http://{ip}/api/color/{}".replace("{ip}", ip_address)
+        self.servo_format = "http://{ip}/api/servo/{}/{}".replace("{ip}", ip_address)
+
+    async def set_rgb(self, red, green, blue):
         """
-        Helper function to send data over the BLE.
-        identifier (str): UUID of the characteristic as str.
-        struct_format (str): The format to send the data as, refer to the struct library formatting,
-        maximum should be 20 bytes but haven't checked.
-        *data (any): The data to format, in order of the struct format.
+        Sets the built-in RGB to the given colors.
+        Parameters type: float
         """
-        data = struct.pack(struct_format, *data)
-        if print_data:
-            print(data.hex())
-        await self._connection.write_gatt_char(CHARACTERISTICS[identifier], data)
+        hexed_color = "".join([hex(int(x * 255))[2:].rjust(2, '0') for x in (red, green, blue)])
+        url = self.color_format.format(hexed_color)
+        return requests.post(url)
 
-    ### Enter and exit methods are for "with ble_connection", to make sure the socket closes correctly.
-    # since our connection implemented them we can send the data to the connection under us, 
-    async def __aenter__(self):
-        await self._connection.connect()
-        # for characteristic in CHARACTERISTICS.values():
-        # await client.start_notify(characteristic, callback) # on change do callback.
-        if self._debug:
-            print("Connected with:", self._connection.name)
-            services = self._connection.services
-            print(f"Services({len(services.services)}): {services}")
-        return self
+    async def _angle_servo(self, servo: ServoType, angle):
+        if servo == ServoType.SPIN:
+            servo_num = 1
+        else:
+            servo_num = 2
+        url = self.servo_format.format(servo_num, int(angle))
+        return requests.post(url)
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self._connection.disconnect()
-        if exc_type is not None and self._debug:
-            print("Disconnected with:", self._connection.name)
-            print("Exception occurred:", exc_val)
-            return False
-        return None
-
-
-# we can get also data: got = await _connection.read_gatt_char(CHARACTERISTICS["Identifier"]).
-# It is highly preferable to use the callback function rather than getting it directly.
-# Unimplemented as the camera hasn't arrived.
-def callback(sender: bleak.BleakGATTCharacteristic, data: bytearray):
-    """
-    Gets called when the server calls notify, data may change but this will only get called when server calls notify().
-    Made so there won't be a mutex issue where one is reading the value while it's changing.
-    """
-    uuid = sender.uuid
-    if uuid == CHARACTERISTICS["Light"]:
-        print("Light characteristic was written to")
-        # on_light_write(sender, data)
-    print(f"Data received from {sender}: {data}")
-
-
-async def set_rgb(connection: BLEConnection, red, green, blue):
-    """
-    Sets the built-in RGB to the given colors.
-    data sent as 3 floats representing red, green and blue values in that order.
-    """
-    await connection.set_characteristic_value("Light", "<3f", red, green, blue)
-
-
-async def set_angle(connection: BLEConnection, servo, angle):
-    servos = ["ServoLeft", "ServoRight", "ServoUp", "ServoDown"]
-    await connection.set_characteristic_value(servos[servo], "I", angle)
+    async def egg(self):
+        pass
 
 
 async def main():
     print("Connecting...")
-    client = BLEConnection(DEVICE, debug=True)
-    async with client:
-        for i in range(4):
-            await set_angle(client, i, 90)
-            await asyncio.sleep(1)  # wait before sending next one.
-            await set_angle(client, i, 180)
-            await asyncio.sleep(1)  # wait before sending next one.
-            await set_angle(client, i, 0)
-            await asyncio.sleep(1)  # wait before sending next one.
+    cli = ServoClient()
+    got = await cli.set_rgb(15 / 255, 0.0, 0.0)
+    for x in range(0, 181, 180 // 4):
+        got = await cli._angle_servo(ServoType.SPIN, x)
+        # await asyncio.sleep(0.5)
+        got = await cli.angle_servo(ServoType.TOP, x)
+        print(got.content)
+        await asyncio.sleep(0.5)
+    got = await cli.angle_servo(ServoType.SPIN, 0)
+    got = await cli.angle_servo(ServoType.TOP, 0)
 
 
 if __name__ == '__main__':
