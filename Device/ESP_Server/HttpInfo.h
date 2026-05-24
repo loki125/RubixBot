@@ -1,5 +1,5 @@
-#define NETWORK_SSID "" // Wifi Network name
-#define NETWORK_PASSWORD "" // Wifi Netwrok password
+#define NETWORK_SSID "Labooboo" // Wifi Network name
+#define NETWORK_PASSWORD "cvbb2128" // Wifi Netwrok password
 #define DEVICE_HOSTNAME "EspServoController"
 
 const char mainPage[] = R"=====(
@@ -13,7 +13,7 @@ const char mainPage[] = R"=====(
 </head>
 
 <body>
-  <h1>Hey there.</h1>
+  <h1>Hey there. u cookie</h1>
 
 </body>
 )=====";
