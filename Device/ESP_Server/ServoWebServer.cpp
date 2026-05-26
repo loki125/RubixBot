@@ -14,17 +14,22 @@
 
 WebServer server(80);
 
-// Site/api/servo{1/2}/{0-180}
+// Site/api/servo{1/2}/{0-180/270}
 void processServoRequest(){
   Serial.println(F("Starting_check"));
   int servo_number = server.pathArg(0).toInt() - 1; // no need to check for valid number cause regex did as well.
   Serial.println("servo numbered.");
   int angle_number = server.pathArg(1).toInt(); // same thing just need to make sure it's within 180 degrees.
   Serial.println("Hello there.");
-  if (angle_number > 180) {
-    server.send(400, "text/plain", "Invalid angle");
+  if (servo_number == 1 && angle_number > 180 ) {
+    server.send(400, "text/plain", "Invalid angle for servo2");
     return;
-  } // we don't check '-' sign so only positives
+  }
+
+  if(angle_number > 270 ){
+    server.send(400, "text/plain", "Invalid angle for servo");
+    return;
+  }
   // servo logic goes here.
   set_servo_pos(
     (RUBIK_SERVO)servo_number,

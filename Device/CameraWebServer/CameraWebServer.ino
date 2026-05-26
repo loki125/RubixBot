@@ -35,28 +35,29 @@ void setup() {
   config.pin_pwdn = PWDN_GPIO_NUM;
   config.pin_reset = RESET_GPIO_NUM;
   config.xclk_freq_hz = 20000000;
-  config.frame_size = FRAMESIZE_UXGA;
-  config.pixel_format = PIXFORMAT_JPEG;  // for streaming
-  //config.pixel_format = PIXFORMAT_RGB565; // for face detection/recognition
+  
+  // OPTIMIZATION 1: Use SVGA (800x600). It's the sweet spot. 
+  // UXGA is too slow/large, QVGA is too blurry for edge detection.
+  config.frame_size = FRAMESIZE_SVGA; 
+  config.pixel_format = PIXFORMAT_JPEG;
   config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
   config.fb_location = CAMERA_FB_IN_PSRAM;
-  config.jpeg_quality = 12;
+  
+  // OPTIMIZATION 2: Lower number = less compression/fewer artifacts.
+  // Crucial so cv.Canny doesn't pick up JPEG noise as cube edges.
+  config.jpeg_quality = 10; 
   config.fb_count = 1;
 
-  // if PSRAM IC present, init with UXGA resolution and higher JPEG quality
-  //                      for larger pre-allocated frame buffer.
   if (config.pixel_format == PIXFORMAT_JPEG) {
     if (psramFound()) {
-      config.jpeg_quality = 10;
+      config.jpeg_quality = 10; // Keep quality high even with PSRAM
       config.fb_count = 2;
-      config.grab_mode = CAMERA_GRAB_LATEST;
+      config.grab_mode = CAMERA_GRAB_LATEST; // Ensures Python always gets the newest frame
     } else {
-      // Limit the frame size when PSRAM is not available
       config.frame_size = FRAMESIZE_SVGA;
       config.fb_location = CAMERA_FB_IN_DRAM;
     }
   } else {
-    // Best option for face detection/recognition
     config.frame_size = FRAMESIZE_240X240;
 #if CONFIG_IDF_TARGET_ESP32S3
     config.fb_count = 2;
@@ -68,35 +69,36 @@ void setup() {
   pinMode(14, INPUT_PULLUP);
 #endif
 
-  // camera init
+  // Camera init
   esp_err_t err = esp_camera_init(&config);
   if (err != ESP_OK) {
     Serial.printf("Camera init failed with error 0x%x", err);
     return;
   }
 
+  // OPTIMIZATION 3: Configure Sensor specifically for Computer Vision
   sensor_t *s = esp_camera_sensor_get();
-  // initial sensors are flipped vertically and colors are a bit saturated
-  if (s->id.PID == OV3660_PID) {
-    s->set_vflip(s, 1);        // flip it back
-    s->set_brightness(s, 1);   // up the brightness just a bit
-    s->set_saturation(s, -2);  // lower the saturation
-  }
-  // drop down frame size for higher initial frame rate
-  if (config.pixel_format == PIXFORMAT_JPEG) {
-    s->set_framesize(s, FRAMESIZE_QVGA);
-  }
+  
+  // Flip image if necessary (depends on how your camera is mounted)
+  s->set_vflip(s, 1); 
+  // s->set_hmirror(s, 1); // Uncomment if left/right are inverted
 
-#if defined(CAMERA_MODEL_M5STACK_WIDE) || defined(CAMERA_MODEL_M5STACK_ESP32CAM)
-  s->set_vflip(s, 1);
-  s->set_hmirror(s, 1);
-#endif
+  // --- COMPUTER VISION TWEAKS ---
+  s->set_brightness(s, 0);     // 0 prevents washing out white/yellow colors
+  s->set_contrast(s, 1);       // +1 Higher contrast helps Canny Edge Detection find the grid
+  s->set_saturation(s, 2);     // +2 Boost saturation! This forces Red/Orange to be distinctly different
+  s->set_sharpness(s, 1);      // +1 Sharpens the physical black lines on the cube
+  
+  s->set_whitebal(s, 1);       // Enable Auto White Balance
+  s->set_awb_gain(s, 1);       // Enable AWB Gain
+  s->set_wb_mode(s, 0);        // 0 = Auto. (If you use a specific desk lamp, set to 2 or 3 for consistency)
+  s->set_exposure_ctrl(s, 1);  // Auto Exposure on
+  s->set_aec2(s, 0);           // Disable DSP AEC (prevents weird brightness flickering)
+  s->set_bpc(s, 1);            // Black pixel correction
+  s->set_wpc(s, 1);            // White pixel correction
+  s->set_raw_gma(s, 1);        // Gamma correction
+  s->set_lenc(s, 1);           // Lens correction (removes dark corners)
 
-#if defined(CAMERA_MODEL_ESP32S3_EYE)
-  s->set_vflip(s, 1);
-#endif
-
-// Setup LED FLash if LED pin is defined in camera_pins.h
 #if defined(LED_GPIO_NUM)
   setupLedFlash();
 #endif
@@ -107,17 +109,16 @@ void setup() {
 
   Serial.println("WiFi connecting");
   for (int connection_attempts=0; WiFi.status() != WL_CONNECTED; connection_attempts++){
-    Serial.print("\r"); // make it move to the start of the line. following output will overwrite.
+    Serial.print("\r"); 
     Serial.print(connection_attempts);
     delay(500);
   }
-  Serial.println("");
-  Serial.println("WiFi connected");
+  Serial.println("\nWiFi connected");
 
   startCameraServer();
 
   Serial.print("Camera Ready! Use 'http://"); 
-  Serial.print(WiFi.localIP()); // Won't always have Serial Connection, so Use hostname to find the IP of the device in your local network.
+  Serial.print(WiFi.localIP()); 
   Serial.println("' to connect");
 }
 

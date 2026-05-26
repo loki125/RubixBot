@@ -1,6 +1,3 @@
-/*
-  We'll have 8 servos total, in pairs of side(left/right/up/down) and (push/spin) as one servo pushes the other on the cube to cause friction and the other spins to rotate the cube.
-*/
 
 #define SERVO_COUNT 2
 
