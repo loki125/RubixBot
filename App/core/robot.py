@@ -37,45 +37,45 @@ class RobotClient:
 
     def flip_cube(self, amount=1):
         """Flips the cube to change the orientation."""
-        for i in range(amount):
+        for _ in range(amount):
             # 1. Raise flipper up
             self._send_top(RobotConfig.TOP_FLIP_ANGLE, RobotConfig.DELAY_FLIP, TopState.FLIP)
-            # 2. If we need to flip again, return to open to let the cube settle
-            if i < (amount - 1):
-                self._send_top(RobotConfig.TOP_OPEN_ANGLE, RobotConfig.DELAY_OPEN, TopState.OPEN)
+            
+            self._send_top(RobotConfig.TOP_OPEN_ANGLE, RobotConfig.DELAY_OPEN, TopState.OPEN)
 
     def cw_cube(self, amount=1):
         """Spins the entire cube clockwise."""
         self._ensure_cover_open()
-        
-        if self.bottom_state == BottomState.HOME:
-            self._send_bottom(RobotConfig.BOTTOM_CW_ANGLE, RobotConfig.DELAY_SPIN, BottomState.CW)
-        else:
-            self._send_bottom(RobotConfig.BOTTOM_HOME_ANGLE, RobotConfig.DELAY_SPIN, BottomState.HOME)
+        for _ in range(amount):
+            if self.bottom_state == BottomState.HOME:
+                self._send_bottom(RobotConfig.BOTTOM_CW_ANGLE, RobotConfig.DELAY_SPIN, BottomState.CW)
+            else:
+                self._send_bottom(RobotConfig.BOTTOM_HOME_ANGLE, RobotConfig.DELAY_SPIN, BottomState.HOME)
 
     def ccw_cube(self, amount=1):
         """Spins the entire cube counter-clockwise."""
         self._ensure_cover_open()
-        
-        if self.bottom_state == BottomState.HOME:
-            self._send_bottom(RobotConfig.BOTTOM_CCW_ANGLE, RobotConfig.DELAY_SPIN, BottomState.CCW)
-        else:
-            self._send_bottom(RobotConfig.BOTTOM_HOME_ANGLE, RobotConfig.DELAY_SPIN, BottomState.HOME)
+        for _ in range(amount):
+            if self.bottom_state == BottomState.HOME:
+                self._send_bottom(RobotConfig.BOTTOM_CCW_ANGLE, RobotConfig.DELAY_SPIN, BottomState.CCW)
+            else:
+                self._send_bottom(RobotConfig.BOTTOM_HOME_ANGLE, RobotConfig.DELAY_SPIN, BottomState.HOME)
         
     def rotate_base(self, amount=1):
-        """Rotates ONLY the bottom layer (required to actually solve/scramble)."""
-        self._ensure_cover_closed()
-        
-        direction = "CCW" if amount == 3 else "CW"
-        if self.bottom_state == BottomState.HOME:
-            if direction == "CW":
-                self._send_bottom(RobotConfig.BOTTOM_CW_ANGLE, RobotConfig.DELAY_ROTATE, BottomState.CW)
-            else:
-                self._send_bottom(RobotConfig.BOTTOM_CCW_ANGLE, RobotConfig.DELAY_ROTATE, BottomState.CCW)
-        else:
-            self._send_bottom(RobotConfig.BOTTOM_HOME_ANGLE, RobotConfig.DELAY_ROTATE, BottomState.HOME)
+            """Rotates ONLY the bottom layer."""
+            self._ensure_cover_closed()
             
-        self._send_top(RobotConfig.TOP_OPEN_ANGLE, RobotConfig.DELAY_OPEN, TopState.OPEN)
+            direction = "CCW" if amount == 3 else "CW"
+            if self.bottom_state == BottomState.HOME:
+                if direction == "CW":
+                    self._send_bottom(RobotConfig.BOTTOM_CW_ANGLE, RobotConfig.DELAY_ROTATE, BottomState.CW)
+                else:
+                    self._send_bottom(RobotConfig.BOTTOM_CCW_ANGLE, RobotConfig.DELAY_ROTATE, BottomState.CCW)
+            else:
+                # Safely return to home from either CW or CCW
+                self._send_bottom(RobotConfig.BOTTOM_HOME_ANGLE, RobotConfig.DELAY_ROTATE, BottomState.HOME)
+                
+            self._send_top(RobotConfig.TOP_OPEN_ANGLE, RobotConfig.DELAY_OPEN, TopState.OPEN)
 
     def solve(self, cube_map: dict) -> list:
         """Generates and translates solution instructions using the Kociemba algorithm."""
@@ -98,17 +98,19 @@ class RobotClient:
     def execute_move(self, move: str):
         """Executes a single compiled physical move on the hardware."""
         action = move[0]
-        amount = int(move[1])
+        amount = 1 if len(move) < 2 else int(move[1])
 
         if action == 'F':
             self.flip_cube(amount)
         elif action == 'S':
             if amount == 3:
-                self.ccw_cube(1)
+                self.ccw_cube()
             else:
                 self.cw_cube(amount)
         elif action == 'R':
             self.rotate_base(amount)
+        else:
+            raise ValueError(f"Invalid move action '{action}' in instruction '{move}'.")
 
     def _serialize_cube_map(self, cube_map: dict) -> str:
         """Validates scanned data and serializes it to a 54-character Kociemba string."""
@@ -149,7 +151,13 @@ class RobotClient:
     def _adapt_kociemba_move(self, move: str) -> str:
         """Finds which physical side the requested face is currently on."""
         target_face = move[0]
-        rotations = move[1]
+
+        if len(move) == 1:
+            rotations = "1"
+        elif move[1] == "'":
+            rotations = "3"
+        else:
+            rotations = move[1]  
 
         for side, current_face in self._h_faces.items():
             if current_face == target_face:

@@ -2,4 +2,3 @@
 venv/
 .idea/
 __pycache__
-/Device/Camera/CameraWebServer/wifi_credentials.h

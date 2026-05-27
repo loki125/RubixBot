@@ -29,7 +29,10 @@ class CameraConfig:
 
 
 IMAGE_PATH = "image/current.jpeg"
+DEBUG_PATH = "image/debug_cube_detection.jpg"
 DEFAULT_PORT = 8000
+CAM_IP = "10.151.37.177"
+SERVO_IP = "10.151.37.143"
 
 class TopState(Enum):
     OPEN = 0
@@ -45,24 +48,24 @@ class RobotConfig:
     # --- ABSOLUTE SERVO ANGLES (0 to 180 degrees) ---
 
     BOTTOM_CCW_ANGLE = 20      # Fully CCW position (-90°)
-    BOTTOM_HOME_ANGLE = 76     # Center/Home position (0°)
-    BOTTOM_CW_ANGLE = 134      # Fully CW position (+90°)
+    BOTTOM_HOME_ANGLE = 110     # Center/Home position (0°)
+    BOTTOM_CW_ANGLE = 215      # Fully CW position (+90°)
 
-    TOP_FLIP_ANGLE = 54        # Flipper fully up (lifts the cube)
-    TOP_OPEN_ANGLE = 130       # Top cover wide open (cube completely free)
-    TOP_CLOSE_ANGLE = 76       # Top cover closed (locks middle/top layers)
+    TOP_FLIP_ANGLE = 40        # Flipper fully up (lifts the cube)
+    TOP_OPEN_ANGLE = 100       # Top cover wide open (cube completely free)
+    TOP_CLOSE_ANGLE = 140       # Top cover closed (locks middle/top layers)
 
     # --- ACTION DELAYS (Seconds) ---
-    DELAY_FLIP = 0.45          # Time to execute a flip
-    DELAY_OPEN = 0.30          # Time to raise cover
-    DELAY_CLOSE = 0.30         # Time to lower cover
-    DELAY_SPIN = 0.55          # Time to spin the turntable
-    DELAY_ROTATE = 0.60        # Time to rotate a locked layer
+    DELAY_FLIP = 0.65          # Time to execute a flip
+    DELAY_OPEN = 0.65          # Time to raise cover
+    DELAY_CLOSE = 0.50         # Time to lower cover
+    DELAY_SPIN = 0.75          # Time to spin the turntable
+    DELAY_ROTATE = 0.80        # Time to rotate a locked layer
 
     # --- KOCIEMBA DICTIONARIES ---
     ROBOT_MOVES_DICT = {
-        'U1': 'F2R1S3',     'U2': 'F2R1S3R1S3', 'U3': 'F2S1R3',
-        'D1': 'R1S3',       'D2': 'R1S3R1S3',   'D3': 'S1R3',
+        'U1': 'F2R1S3',     'U2': 'F2R1S3R1S3', 'U3': 'F2S1R3',      
+        'D1': 'S1R3',       'D2': 'S1R3S1R3',   'D3': 'R1S3',  
         'F1': 'F1R1S3',     'F2': 'F1R1S3R1S3', 'F3': 'F1S1R3',
         'B1': 'F3R1S3',     'B2': 'F3R1S3R1S3', 'B3': 'F3S1R3',
         'L1': 'S3F3R1',     'L2': 'S3F3R1S3R1', 'L3': 'S1F1R3',

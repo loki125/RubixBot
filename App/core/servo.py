@@ -2,6 +2,7 @@ import socket
 import urllib.request
 from enum import Enum
 
+from .config import SERVO_IP
 
 class ServoType(Enum):
     SPIN = 0
@@ -11,7 +12,11 @@ class ServoType(Enum):
 class ServoClient:
     def __init__(self):
         # Resolve ESP32 hostname to IP
-        ip_address = socket.gethostbyname("EspServoController")
+        try:
+            ip_address = socket.gethostbyname("EspServoController")
+        except socket.gaierror:
+            # ip_address = input("Could not resolve ESP32 hostname. Please enter the IP address of the ESP32: ")
+            ip_address = SERVO_IP
         print(f"Connected to ESP board at: {ip_address}")
 
         self.color_format = f"http://{ip_address}/api/color/{{}}"
