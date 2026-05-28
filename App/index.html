@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rubik's Cube Controller</title>
+    <style>
+        :root {
+            --bg-primary: #121212;
+            --bg-secondary: #1e1e1e;
+            --text-main: #e0e0e0;
+            --accent: #2196f3;
+            --accent-hover: #1976d2;
+            --accent-secondary: #e91e63;
+            --accent-secondary-hover: #c2185b;
+            --accent-tertiary: #4caf50;
+            --accent-tertiary-hover: #388e3c;
+            --border-color: #333;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 900px;
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+
+        @media (min-width: 768px) {
+            .container {
+                grid-template-columns: 1.2fr 1fr;
+            }
+        }
+
+        .panel {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        h2 {
+            margin-top: 0;
+            font-size: 1.2rem;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+        }
+
+        /* Image Display Box */
+        .image-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .cube-img {
+            width: 100%;
+            aspect-ratio: 16/9;
+            background-color: #000;
+            border-radius: 4px;
+            object-fit: contain;
+            border: 1px solid var(--border-color);
+        }
+
+        /* Controls */
+        .btn-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        button {
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 12px;
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: background-color 0.2s, transform 0.1s;
+            width: 100%;
+            font-weight: 500;
+        }
+
+        button:hover {
+            background-color: var(--accent-hover);
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+        
+        .btn-stop { background-color: #f44336 !important; }
+        .btn-stop:hover { background-color: #d32f2f !important; }
+
+        .btn-status {
+            background-color: #333 !important;
+            color: #fff !important;
+            cursor: default !important;
+            border: 1px solid var(--border-color) !important;
+        }
+        .btn-status:active { transform: none !important; }
+
+        /* Sub-grid for menus */
+        .menu-grid {
+            display: none;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-top: 4px;
+            padding: 10px;
+            border-radius: 6px;
+            background-color: #151515;
+            border: 1px dashed var(--border-color);
+        }
+
+        .menu-grid button {
+            padding: 10px;
+            font-size: 0.90rem;
+        }
+
+        #faceScanGroup button { background-color: var(--accent-secondary); }
+        #faceScanGroup button:hover { background-color: var(--accent-secondary-hover); }
+        #manualMoveGroup button { background-color: var(--accent-tertiary); }
+        #manualMoveGroup button:hover { background-color: var(--accent-tertiary-hover); }
+
+        /* Log / Response console */
+        .log-panel { grid-column: 1 / -1; }
+
+        .console {
+            background-color: #000;
+            font-family: monospace;
+            padding: 12px;
+            border-radius: 4px;
+            height: 150px;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+            font-size: 0.85rem;
+        }
+
+        .log-entry { margin: 4px 0; line-height: 1.4; }
+        .timestamp { color: #888; margin-right: 8px; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <!-- Live Camera View -->
+        <div class="panel image-container">
+            <h2>Camera Live View</h2>
+            <img id="liveView" src="" alt="No camera view available" class="cube-img">
+        </div>
+
+        <!-- Controls View -->
+        <div class="panel">
+            <h2>Actions</h2>
+            <div class="btn-group">
+                <button onclick="sendRequest('/api/cam_status')">Check Camera Status</button>
+                
+                <button onclick="toggleFaceMenu()" style="background-color: #3f51b5;">Scan Face...</button>
+                <div id="faceScanGroup" class="menu-grid">
+                    <button onclick="scanFace('U')">U (Up)</button>
+                    <button onclick="scanFace('D')">D (Down)</button>
+                    <button onclick="scanFace('F')">F (Front)</button>
+                    <button onclick="scanFace('B')">B (Back)</button>
+                    <button onclick="scanFace('L')">L (Left)</button>
+                    <button onclick="scanFace('R')">R (Right)</button>
+                </div>
+
+                <!-- Live Solve Controls -->
+                <div id="solveControlsMain" class="btn-group" style="margin-top: 8px; margin-bottom: 8px;">
+                    <button id="btnStartSolve" onclick="sendSolveCommand('/api/start_solve')" style="background-color: var(--accent-tertiary);">Solve Cube</button>
+                    
+                    <div id="activeSolveControls" style="display: none; flex-direction: column; gap: 12px;">
+                        <button id="btnSolveStatus" class="btn-status" disabled>Solving... Current move: []</button>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                            <button id="btnPause" onclick="sendSolveCommand('/api/pause_solve')" class="btn-stop" style="grid-column: 1 / -1;">Stop Solve</button>
+                            <button id="btnResume" onclick="sendSolveCommand('/api/resume_solve')" style="background-color: #ff9800; display: none;">Continue</button>
+                            <button id="btnReset" onclick="sendSolveCommand('/api/reset_solve')" style="background-color: #757575; display: none;">Reset</button>
+                        </div>
+                    </div>
+                </div>
+
+                <button onclick="toggleMoveMenu()" style="background-color: #2e7d32;">Manual Move...</button>
+                <div id="manualMoveGroup" class="menu-grid">
+                    <button onclick="executeMove('F')">Flip (F)</button>
+                    <button onclick="executeMove('S')">Spin (S)</button>
+                    <button onclick="executeMove('R')">Rotate (R)</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Output Console -->
+        <div class="panel log-panel">
+            <h2>Activity Log</h2>
+            <div id="console" class="console">
+                <div class="log-entry"><span class="timestamp">[System]</span>Console ready...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const updateIntervalMs = 500; 
+        const liveViewImage = document.getElementById("liveView");
+        
+        let lastTimestamp = null;
+        let lastError = null;
+
+        async function pollStatus() {
+            // Check Live View Updates
+            try {
+                const imgRes = await fetch('/api/image_timestamp');
+                if (imgRes.ok) {
+                    const data = await imgRes.json();
+                    if (data.timestamp !== lastTimestamp) {
+                        lastTimestamp = data.timestamp;
+                        liveViewImage.src = `${data.path}?t=${data.timestamp}`;
+                    }
+                }
+            } catch (error) {}
+
+            // Check Cube Solve sequence updates
+            try {
+                const solveRes = await fetch('/api/solve_status');
+                if (solveRes.ok) {
+                    const data = await solveRes.json();
+                    updateSolveUI(data);
+                }
+            } catch (error) {}
+        }
+        setInterval(pollStatus, updateIntervalMs);
+
+        function updateSolveUI(data) {
+            const btnStart = document.getElementById("btnStartSolve");
+            const activeControls = document.getElementById("activeSolveControls");
+            const btnStatus = document.getElementById("btnSolveStatus");
+            const btnPause = document.getElementById("btnPause");
+            const btnResume = document.getElementById("btnResume");
+            const btnReset = document.getElementById("btnReset");
+
+            // Reset error coloring
+            if (data.state !== "ERROR") btnStatus.style.borderColor = "var(--border-color)";
+
+            if (data.state === "IDLE" && data.total === 0) {
+                btnStart.style.display = "block";
+                activeControls.style.display = "none";
+            } 
+            else if (data.state === "SOLVING") {
+                btnStart.style.display = "none";
+                activeControls.style.display = "flex";
+                btnStatus.innerText = `Solving cube... Current move: [${data.current_move || 'Finishing'}] (${data.index}/${data.total})`;
+                
+                btnPause.style.display = "block";
+                btnPause.style.gridColumn = "1 / -1";
+                btnResume.style.display = "none";
+                btnReset.style.display = "none";
+            } 
+            else if (data.state === "PAUSED") {
+                btnStart.style.display = "none";
+                activeControls.style.display = "flex";
+                btnStatus.innerText = `Paused at: [${data.current_move || 'None'}] (${data.index}/${data.total})`;
+                
+                btnPause.style.display = "none";
+                btnResume.style.display = "block";
+                btnReset.style.display = "block";
+            } 
+            else if (data.state === "IDLE" && data.total > 0 && data.index >= data.total) {
+                btnStart.style.display = "none";
+                activeControls.style.display = "flex";
+                btnStatus.innerText = `Cube Solved! (${data.total} moves)`;
+                
+                btnPause.style.display = "none";
+                btnResume.style.display = "none";
+                btnReset.style.display = "block";
+                btnReset.style.gridColumn = "1 / -1";
+            }
+            else if (data.state === "ERROR") {
+                btnStart.style.display = "none";
+                activeControls.style.display = "flex";
+                btnStatus.innerText = `Hardware Error! Press Reset.`;
+                btnStatus.style.borderColor = "#f44336";
+                
+                btnPause.style.display = "none";
+                btnResume.style.display = "none";
+                btnReset.style.display = "block";
+                btnReset.style.gridColumn = "1 / -1";
+                
+                if (data.error && data.error !== lastError) {
+                    logMessage(`Solve Error: ${data.error}`);
+                    lastError = data.error;
+                }
+            }
+        }
+
+        function logMessage(msg) {
+            const consoleDiv = document.getElementById("console");
+            const time = new Date().toLocaleTimeString();
+            
+            const logEntry = document.createElement("div");
+            logEntry.className = "log-entry";
+            logEntry.innerHTML = `<span class="timestamp">[${time}]</span>${msg}`;
+            
+            consoleDiv.appendChild(logEntry);
+            consoleDiv.scrollTop = consoleDiv.scrollHeight;
+        }
+
+        function toggleFaceMenu() {
+            const menu = document.getElementById("faceScanGroup");
+            const moveMenu = document.getElementById("manualMoveGroup");
+            moveMenu.style.display = "none";
+            menu.style.display = (menu.style.display === "grid") ? "none" : "grid";
+        }
+
+        function toggleMoveMenu() {
+            const menu = document.getElementById("manualMoveGroup");
+            const faceMenu = document.getElementById("faceScanGroup");
+            faceMenu.style.display = "none";
+            menu.style.display = (menu.style.display === "grid") ? "none" : "grid";
+        }
+
+        function scanFace(faceLetter) {
+            sendRequest(`/api/face_scan?face=${faceLetter}`);
+        }
+
+        function executeMove(moveChar) {
+            sendRequest(`/api/execute_move?move=${moveChar}`);
+        }
+
+        async function sendSolveCommand(endpoint) {
+            logMessage(`Executing Command: ${endpoint.split('/').pop()}`);
+            try {
+                const response = await fetch(endpoint);
+                const text = await response.text();
+                logMessage(`Response: ${text}`);
+                pollStatus(); // Force instant UI refresh
+            } catch (error) {
+                logMessage(`Error: Unable to hit ${endpoint}`);
+            }
+        }
+
+        async function sendRequest(endpoint) {
+            logMessage(`Sending request to ${endpoint}...`);
+            try {
+                const response = await fetch(endpoint);
+                const text = await response.text();
+                logMessage(`Response: ${text}`);
+            } catch (error) {
+                logMessage(`Error: Unable to complete request to ${endpoint}`);
+            }
+        }
+    </script>
+</body>
+</html>
